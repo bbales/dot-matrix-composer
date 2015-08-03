@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+        <script>
+
+            var ROWS = 7;
+            var COLS = 5;
+
+            function createButtons(){
+                var xx = 0;
+                var yy = 0;
+
+                for(yy = 0; yy < ROWS; yy++){
+                    $(".matrix").append("<div class='row' rownum='"+yy+"'>");
+                    for(xx = 0; xx < COLS; xx++){
+                        $("[rownum='"+yy+"']").append("<div class='cell' on='true' cell='"+xx+"x"+yy+"'></div>");
+                        $('[cell="'+xx+'x'+yy+'"]').bind('mousedown', toggleCell)
+                        $('[cell="'+xx+'x'+yy+'"]').bind('mouseover', toggleCellHover)
+                    }
+                }
+
+                addAction('aforward',animation.next_frame);
+                addAction('aback',animation.prev_frame);
+                addAction('aplay',animation.play);
+                addAction('apause',animation.pause);
+                addAction('anew',animation.new_frame);
+                addAction('acopy',animation.copy_frame);
+                addAction('adelete',animation.delete_frame);
+
+                $(".fps").bind('change',animation.fpschange)
+            }
+
+            function addAction(name,handler){
+                $("[action='"+name+"']").bind('click',handler);
+            }
+
+            function toggleCell(e){
+                var cell = $(e.currentTarget).attr('cell');
+                var x = parseInt(cell.split('x')[0]);
+                var y = parseInt(cell.split('x')[1]);
+
+                if(cue[current_frame_num][x][y] == 1){
+                    cue[current_frame_num][x][y] = 0;
+                }else{
+                    cue[current_frame_num][x][y] = 1;
+                }
+
+                animation.update_frames();
+                update_view();
+            }
+
+            function toggleCellHover(e){
+                if(e.buttons != 1) return;
+                var cell = $(e.currentTarget).attr('cell');
+                var x = parseInt(cell.split('x')[0]);
+                var y = parseInt(cell.split('x')[1]);
+
+                cue[current_frame_num][x][y] = 1;
+
+                animation.update_frames();
+                update_view();
+            }
+
+            function update_view(){
+                var xx = 0;
+                var yy = 0;
+
+                for(yy = 0; yy < ROWS; yy++){
+                    for(xx = 0; xx < COLS; xx++){
+                        if(cue[current_frame_num][xx][yy]){
+                            $('[cell="'+xx+'x'+yy+'"]').removeClass('off');
+                            $('[cell="'+xx+'x'+yy+'"]').addClass('on');
+                        }else{
+                            $('[cell="'+xx+'x'+yy+'"]').removeClass('on');
+                            $('[cell="'+xx+'x'+yy+'"]').addClass('off');
+                        }
+                    }
+                }
+            }
+
+            var animation = {
+                playing : false,
+                process : null,
+            };
+
+            animation.play = function(){
+                animation.playing = true;
+                var fps = parseInt($(".fps")[0].options[$(".fps")[0].selectedIndex].value);
+                animation.process = setInterval(animation.loop,1000/fps);
+            }
+
+            animation.pause = function(){
+                animation.playing = false;
+                clearInterval(animation.process);
+            }
+
+            animation.fpschange = function(){
+                if(!animation.playing) return;
+                animation.pause();
+                animation.play();
+            }
+
+            animation.loop = function(){
+                if(current_frame_num + 1 == cue.length){
+                    current_frame_num = 0;
+                }else{
+                    current_frame_num++;
+                }
+                update_view();
+                animation.select_frame();
+            }
+
+            animation.update_frames = function(){
+                $(".frames").html("");
+                for(var i = 0; i < cue.length; i++){
+                    $('.frames').append('<div class="frame" frame="'+i+'"></div>');
+                    for(var j = 0; j < ROWS; j++){
+                        $("[frame='"+i+"']").append('<div class="dotrow" row="'+j+'"></div>');
+                    }
+                    for(var k = 0; k < COLS; k++){
+                        for(var z = 0; z < ROWS; z++){
+                            $("[frame='"+i+"']").children("[row='"+z+"']").append('<div class="dot '+(cue[i][k][z] ? 'on' : 'off')+'"></div>');
+                        }
+                    }
+                }
+                $('.frame').bind('click',animation.select_frame);
+
+                animation.select_frame();
+            }
+
+            animation.select_frame = function(e){
+                $(".frame").removeClass('curframe');
+                if(e == undefined){
+                    $("[frame='"+current_frame_num+"']").addClass("curframe")
+                }else{
+                    current_frame_num = parseInt($(e.currentTarget).attr('frame'));
+                    $(e.currentTarget).addClass("curframe");
+                }
+                update_view();
+            }
+
+            animation.next_frame = function(){
+                if(cue.length > current_frame_num+1){
+                    current_frame_num++;
+                    animation.select_frame();
+                    update_view();
+                }
+            }
+
+            animation.prev_frame = function(){
+                if(current_frame_num-1 >= 0){
+                    current_frame_num--;
+                    animation.select_frame();
+                    update_view();
+                }
+            }
+
+            animation.new_frame = function(){
+                cue.splice(current_frame_num+1,0,deepCopy(empty_frame));
+                current_frame_num++;
+                animation.update_frames();
+                update_view();
+                animation.select_frame();
+            }
+
+            animation.copy_frame = function(){
+                cue.splice(current_frame_num+1,0,deepCopy(cue[current_frame_num]));
+                current_frame_num++;
+                animation.update_frames();
+                update_view();
+                animation.select_frame();
+            }
+
+            animation.delete_frame = function(){
+                cue.splice(current_frame_num,1);
+                if(current_frame_num != 0){
+                    current_frame_num--;
+                }
+                animation.update_frames();
+                update_view();
+                animation.select_frame();
+            }
+
+            var bitControls = {
+                shift_frame_left : function(){
+                    if(current_frame_num == 0) return;
+                    var a = cue[current_frame_num];
+                    console.log(a);
+                    cue.splice(current_frame_num,1);
+                    cue.splice(current_frame_num-1,0,a);
+                },
+
+                shift_right : function(){
+                    cue[current_frame_num].unshift(cue[current_frame_num].pop());
+                    update_view();
+                    animation.update_frames();
+                },
+
+                shift_left : function(){
+                    cue[current_frame_num].push(cue[current_frame_num].shift());
+                    update_view();
+                    animation.update_frames();
+                },
+
+                shift_up : function(){
+                    for(var i = 0; i < COLS; i++){
+                        cue[current_frame_num][i].push(cue[current_frame_num][i].shift());
+                    }
+                    update_view();
+                    animation.update_frames();
+                },
+
+                shift_down : function(){
+                    for(var i = 0; i < COLS; i++){
+                        cue[current_frame_num][i].unshift(cue[current_frame_num][i].pop());
+                    }
+                    update_view();
+                    animation.update_frames();
+                },
+            };
+
+            var animated = false;
+
+            function toggleAnimate(force){
+                if(force == undefined){
+                    animated = !animated;
+                }else{
+                    animated = force;
+                }
+                if(animated){
+                    $(".acontrols").addClass('show')
+                    $(".acontrols").removeClass('hide')
+                }else{
+                    $(".acontrols").addClass('hide')
+                    $(".acontrols").removeClass('show')
+                }
+            }
+
+            function deepCopy(arr){
+                return JSON.parse(JSON.stringify(arr));
+            }
+
+            var empty_frame = [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+            var current_frame_num = 0;
+            var cue = [deepCopy(empty_frame),deepCopy(empty_frame),deepCopy(empty_frame)];
+
+            window.onload = function(){
+                createButtons();
+                update_view();
+                animation.update_frames();
+                animation.select_frame();
+            };
+        </script>
+        <style>
+            body{
+                background-color: #373737;
+                cursor:default;
+                font-family: helvetica;
+                padding:0 0;
+                margin:0 0;
+            }
+
+            .matrix{
+                width:300px;
+                height:100px;
+                margin-left:auto;
+                margin-right:auto;
+                margin-top:8%;
+            }
+            .cell{
+                width:50px;
+                height:50px;
+                margin:4px;
+                float:left;
+                border-radius:50%;
+                border: 1px solid #9E9E9E;
+
+                background-color:#58CD8C;
+            }
+
+            .controls{
+                color:#E6E6E6;
+                position: fixed;
+                top:10px;
+                padding:5px 15px;
+            }
+
+            .cbutton{
+                float:left;
+                margin-right:10px;
+                cursor:pointer;
+            }
+
+            .cbutton:active{
+                color:#C0C0C0;
+            }
+
+            .frames{
+                color:#E6E6E6;
+                position: fixed;
+                bottom:0px;
+                height:112px;
+                background-color:#242424;
+                width:100%;
+            }
+
+            .frame{
+                width:74px;
+                float:left;
+                padding:6px 6px;
+                cursor:pointer;
+            }
+
+            .frame:hover{
+                background-color:#393939;
+            }
+
+            .curframe, frame:active{
+                background-color:#0E0E0E !important;
+            }
+
+            .dotrow{
+                width:74px;
+                height:14px;
+            }
+
+            .dot{
+                width:10px;
+                height:10px;
+                margin:1px;
+                border-radius:50%;
+                float:left;
+                border: 1px solid #9E9E9E;
+            }
+
+            select{
+                background-color: #E6E6E6;
+                border-radius: 3px;
+                font-size: 0.8rem;
+                border: none;
+                outline:none;
+            }
+
+            .hide{
+                display: none !important;
+            }
+
+            .show{
+                display: block !important;
+            }
+
+            .on{
+                background-color:#58CD8C !important;
+            }
+
+            .off{
+                background-color:transparent !important;
+            }
+        </style>
+        <title>Dot Matrix Display Animation Composer</title>
+    </head>
+    <body ondragstart="return false;" ondrop="return false;">
+        <div class="matrix">
+            
+        </div>
+        <div class="controls">
+            <div class="acontrols">
+                <div class="cbutton" action="aplay" title="Play animation"><i class="fa fa-play"></i></div>
+                <div class="cbutton" action="apause" title="pause animation"><i class="fa fa-pause"></i></div>
+                <div class="cbutton" action="aback" title="Back one frame"><i class="fa fa-step-backward"></i></div>
+                <div class="cbutton" action="aforward" title="Forward one frame"><i class="fa fa-step-forward"></i></div>
+                <div class="cbutton" action="anew" title="New empty frame"><i class="fa fa-plus-square-o"></i></div>
+                <div class="cbutton" action="acopy" title="Copy current frame"><i class="fa fa-clone"></i></i></div>
+                <div class="cbutton" action="adelete" title="Delete current frame"><i class="fa fa-trash-o"></i></div>
+                <select class="fps">
+                    <option value="1">1 fps</option>
+                    <option value="2">2 fps</option>
+                    <option value="3">3 fps</option>
+                    <option value="4">4 fps</option>
+                    <option value="5">5 fps</option>
+                    <option value="10">10 fps</option>
+                    <option value="20">20 fps</option>
+                    <option value="30">30 fps</option>
+                    <option value="60">60 fps</option>
+                </select>
+            </div>
+        </div>
+        <div class="frames"></div>
+    </body>
+</html>
