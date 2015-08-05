@@ -165,6 +165,10 @@
 
                 try {
                     var successful = document.execCommand('copy');
+                    $('.copied').removeClass('hide');
+                    setTimeout(function(){
+                        $('.copied').addClass('hide');
+                    },600)
                 } catch (err) {
                     alert("Couldnt copy code to clipboard, check console")
                 }
@@ -501,6 +505,12 @@
                 color:#D9D9D9;
                 z-index:100;
             }
+
+            .copied{
+                font-size: 0.5rem;
+                float:left;
+                margin-top:5px;
+            }
         </style>
         <title>Dot Matrix Display Animation Composer</title>
     </head>
@@ -538,6 +548,7 @@
                 <div class="cbutton" action="save" title="Save to file"><i class="fa fa-download"></i></div>
                 <a href="" class="download hide"></a>
                 <div class="cbutton" action="compile" title="Generate C code"><i class="fa fa-code"></i></div>
+                <span class="copied hide">Copied to Clipboard!</span>
             </div>
             <div class="bcontrols">
                 <div class="cbutton" action="shift_up"><i class="fa fa-arrow-up"></i></div>
