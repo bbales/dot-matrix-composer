@@ -29,8 +29,30 @@
                 addAction('anew',animation.new_frame);
                 addAction('acopy',animation.copy_frame);
                 addAction('adelete',animation.delete_frame);
+                
+                addAction('shift_up',bitControls.shift_up);
+                addAction('shift_down',bitControls.shift_down);
+                addAction('shift_left',bitControls.shift_left);
+                addAction('shift_right',bitControls.shift_right);
+                
+                addAction('save',file.save);
+                addAction('load',file.load);
+                addAction('compile',file.compile);
 
                 $(".fps").bind('change',animation.fpschange)
+
+                $(document).bind('keydown',function(e){
+                    if(e.which == 32 && animation.playing){
+                        animation.pause();
+                    }else if(e.which == 32 && !animation.playing) animation.play();
+
+                    if(e.which == 39) animation.next_frame();
+                    if(e.which == 37) animation.prev_frame();
+                });
+
+                $('.name').bind('keyup',function(){
+                    file.name = $('.name').html().replace(/[\n\t ]|&nbsp;/g, "");
+                })
             }
 
             function addAction(name,handler){
@@ -42,10 +64,14 @@
                 var x = parseInt(cell.split('x')[0]);
                 var y = parseInt(cell.split('x')[1]);
 
-                if(cue[current_frame_num][x][y] == 1){
-                    cue[current_frame_num][x][y] = 0;
+                if(e.buttons != 2){
+                    if(cue[current_frame_num][x][y] == 1){
+                      cue[current_frame_num][x][y] = 0;
+                    }else{
+                      cue[current_frame_num][x][y] = 1;
+                    }
                 }else{
-                    cue[current_frame_num][x][y] = 1;
+                    cue[current_frame_num][x][y] = 0;
                 }
 
                 animation.update_frames();
@@ -53,12 +79,13 @@
             }
 
             function toggleCellHover(e){
-                if(e.buttons != 1) return;
+                if(e.buttons == 0) return;
                 var cell = $(e.currentTarget).attr('cell');
                 var x = parseInt(cell.split('x')[0]);
                 var y = parseInt(cell.split('x')[1]);
 
-                cue[current_frame_num][x][y] = 1;
+                if(e.buttons == 1) cue[current_frame_num][x][y] = 1;
+                if(e.buttons == 2) cue[current_frame_num][x][y] = 0;
 
                 animation.update_frames();
                 update_view();
@@ -81,6 +108,70 @@
                 }
             }
 
+            var file = {
+                name : 'Untitled'
+            };
+
+            file.save = function(){
+                var tempData = {
+                    name : file.name,
+                    cue : cue
+                }
+                var url = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(tempData));
+                $('.download').attr('href',url);
+                $('.download').attr('download',tempData.name+'.dmx');
+                $('.download')[0].click();
+            }
+
+            file.load = function(e){
+                if(e.type == 'click'){
+                    $('.load')[0].click();
+                }else{
+                    var input = e.target;
+                    var reader = new FileReader();
+                    reader.onload = function(){            
+                        var data = JSON.parse(reader.result);
+                        cue = data.cue;
+                        file.name = data.name;
+                        $('.name').html(file.name);
+                        current_frame_num = 0;
+                        animation.select_frame();
+                        animation.update_frames();
+                        update_view();
+                    };
+                    reader.readAsText(input.files[0]);
+                }
+            }
+
+            file.compile = function(e){
+                var cStr = "unsigned char "+file.name+"["+cue.length+"]["+COLS+"] = {";
+                for(var i = 0; i < cue.length; i++){
+                    cStr += "{";
+                    for(var j = 0; j < COLS; j++){
+                        cStr += parseInt(cue[i][j].toString().split("").reverse().toString().replace(/,/g,""),2);
+                        if(j != COLS -1) cStr += ",";
+                    }
+                    cStr += "}";
+                    if(i != cue.length -1) cStr += ",";
+                }
+                cStr += "};"
+                console.log(cStr);
+                var textArea = document.createElement("textarea");
+                textArea.value = cStr;
+
+                document.body.appendChild(textArea);
+
+                textArea.select();
+
+                try {
+                    var successful = document.execCommand('copy');
+                } catch (err) {
+                    alert("Couldnt copy code to clipboard, check console")
+                }
+
+                document.body.removeChild(textArea);
+            }
+
             var animation = {
                 playing : false,
                 process : null,
@@ -90,11 +181,15 @@
                 animation.playing = true;
                 var fps = parseInt($(".fps")[0].options[$(".fps")[0].selectedIndex].value);
                 animation.process = setInterval(animation.loop,1000/fps);
+                $("[action='aplay']").addClass('hide');
+                $("[action='apause']").removeClass('hide');
             }
 
             animation.pause = function(){
                 animation.playing = false;
                 clearInterval(animation.process);
+                $("[action='aplay']").removeClass('hide');
+                $("[action='apause']").addClass('hide');
             }
 
             animation.fpschange = function(){
@@ -175,6 +270,7 @@
             }
 
             animation.delete_frame = function(){
+                if(cue.length == 1) return;
                 cue.splice(current_frame_num,1);
                 if(current_frame_num != 0){
                     current_frame_num--;
@@ -184,14 +280,29 @@
                 animation.select_frame();
             }
 
+            animation.shift_frame_left = function(){
+                if(current_frame_num == 0) return;
+                var a = cue[current_frame_num];
+                cue.splice(current_frame_num,1);
+                cue.splice(current_frame_num-1,0,a);
+                current_frame_num--;
+                animation.update_frames();
+                update_view();
+                animation.select_frame();
+            }
+
+            animation.shift_frame_right = function(){
+                if(current_frame_num == cue.length-1) return;
+                var a = cue[current_frame_num];
+                cue.splice(current_frame_num,1);
+                cue.splice(current_frame_num+1,0,a);
+                current_frame_num++;
+                animation.update_frames();
+                update_view();
+                animation.select_frame();
+            }
+
             var bitControls = {
-                shift_frame_left : function(){
-                    if(current_frame_num == 0) return;
-                    var a = cue[current_frame_num];
-                    console.log(a);
-                    cue.splice(current_frame_num,1);
-                    cue.splice(current_frame_num-1,0,a);
-                },
 
                 shift_right : function(){
                     cue[current_frame_num].unshift(cue[current_frame_num].pop());
@@ -263,6 +374,10 @@
                 margin:0 0;
             }
 
+            *:focus {
+                outline: 0;
+            }
+
             .matrix{
                 width:300px;
                 height:100px;
@@ -286,6 +401,14 @@
                 position: fixed;
                 top:10px;
                 padding:5px 15px;
+                width:100%;
+
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                -khtml-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
             }
 
             .cbutton{
@@ -308,7 +431,7 @@
             }
 
             .frame{
-                width:74px;
+                width:70px;
                 float:left;
                 padding:6px 6px;
                 cursor:pointer;
@@ -344,6 +467,10 @@
                 outline:none;
             }
 
+            .bcontrols{
+                margin-top:20px;
+            }
+
             .hide{
                 display: none !important;
             }
@@ -359,17 +486,35 @@
             .off{
                 background-color:transparent !important;
             }
+
+            .name{
+                position:absolute;
+                margin-left:auto;
+                margin-right:auto;
+                display:inline-block;
+                top:10px;
+                width:30%;
+                left:35%;
+                right:35%;
+                text-align: center;
+                font-size: 1.6rem;
+                color:#D9D9D9;
+                z-index:100;
+            }
         </style>
         <title>Dot Matrix Display Animation Composer</title>
     </head>
     <body ondragstart="return false;" ondrop="return false;">
-        <div class="matrix">
+        <div class="name" contenteditable='true'>
+            Untitled
+        </div>
+        <div class="matrix" oncontextmenu="return false">
             
         </div>
         <div class="controls">
             <div class="acontrols">
                 <div class="cbutton" action="aplay" title="Play animation"><i class="fa fa-play"></i></div>
-                <div class="cbutton" action="apause" title="pause animation"><i class="fa fa-pause"></i></div>
+                <div class="cbutton hide" action="apause" title="pause animation"><i class="fa fa-pause"></i></div>
                 <div class="cbutton" action="aback" title="Back one frame"><i class="fa fa-step-backward"></i></div>
                 <div class="cbutton" action="aforward" title="Forward one frame"><i class="fa fa-step-forward"></i></div>
                 <div class="cbutton" action="anew" title="New empty frame"><i class="fa fa-plus-square-o"></i></div>
@@ -379,13 +524,26 @@
                     <option value="1">1 fps</option>
                     <option value="2">2 fps</option>
                     <option value="3">3 fps</option>
-                    <option value="4">4 fps</option>
+                    <option value="4" selected="selected">4 fps</option>
                     <option value="5">5 fps</option>
                     <option value="10">10 fps</option>
                     <option value="20">20 fps</option>
                     <option value="30">30 fps</option>
                     <option value="60">60 fps</option>
                 </select>
+            </div>
+            <div class="fcontrols">
+                <div class="cbutton" action="load" title="Load from file..."><i class="fa fa-upload"></i></div>
+                <input type='file' class="load hide" accept='text/plain' onchange='file.load(event)'>
+                <div class="cbutton" action="save" title="Save to file"><i class="fa fa-download"></i></div>
+                <a href="" class="download hide"></a>
+                <div class="cbutton" action="compile" title="Generate C code"><i class="fa fa-code"></i></div>
+            </div>
+            <div class="bcontrols">
+                <div class="cbutton" action="shift_up"><i class="fa fa-arrow-up"></i></div>
+                <div class="cbutton" action="shift_down"><i class="fa fa-arrow-down"></i></div>
+                <div class="cbutton" action="shift_left"><i class="fa fa-arrow-left"></i></div>
+                <div class="cbutton" action="shift_right"><i class="fa fa-arrow-right"></i></div>
             </div>
         </div>
         <div class="frames"></div>
