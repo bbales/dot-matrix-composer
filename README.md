@@ -1,4 +1,4 @@
-___ Dot Matrix Animation Composer
+### Dot Matrix Animation Composer
 
 Dot matrix composer can be used to generate binary arrays for LED dot matrix displays. It gives a visual and interactive interface to overcome the cumbersome process of programming these displays manually. This version currently supports:
 
